@@ -1,3 +1,6 @@
 node_modules/
 .DS_Store
 *.log
+
+# delaylocal LINE 憑證（機密，勿進 git）
+**/notify-line.config.json
