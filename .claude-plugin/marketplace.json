@@ -1,0 +1,14 @@
+{
+  "name": "qa-webwright",
+  "description": "webwright 驅動的 QA 測試框架 — 給 Claude Code 用的可安裝 plugin。",
+  "owner": {
+    "name": "fulin"
+  },
+  "plugins": [
+    {
+      "name": "qa-webwright",
+      "source": "./",
+      "description": "QA Agent 設計測試計畫，主 Agent 用 webwright code-as-action 執行 + 截圖自我驗證 critical points。"
+    }
+  ]
+}
