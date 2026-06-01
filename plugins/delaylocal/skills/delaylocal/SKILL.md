@@ -28,6 +28,10 @@ LINE 憑證**不進 git**，要在本機自行設定其一：
 
 ## 執行步驟
 
+**預設為 goal 模式。** 先做下方「goal 模式的排程流程」的 propose → 確認，拿到使用者確認的**完成條件**，
+再走下列步驟（步驟 3 會帶 `--goal "<完成條件>"`）。只有在這個任務實在無法定義可測量條件時，
+才改用 `--plain` 文字模式（可跳過 propose、不需完成條件）。
+
 ### 1. 取得使用者要排的 prompt 原文
 `/delaylocal <prompt>` 的 args。空 → 請使用者補，停止。
 
@@ -42,7 +46,9 @@ LINE 憑證**不進 git**，要在本機自行設定其一：
 ### 3. 跑主工具拿 JSON
 ```bash
 # <skill_dir> = 本 SKILL.md 所在目錄
-node "<skill_dir>/delaylocal.js" [bufferSeconds] --prompt-file <步驟2的唯一檔名>
+# 預設 goal 模式：帶 --goal "<使用者已確認的完成條件>"
+node "<skill_dir>/delaylocal.js" [bufferSeconds] --prompt-file <步驟2的唯一檔名> --goal "<已確認的完成條件>"
+# 文字模式（少數無法定義可測量條件時）：改帶 --plain、省略 --goal
 ```
 - `bufferSeconds` 預設 900（15 分）。要不同緩衝就帶數字（例 `1800`=30 分）。
 - 工具讀完 prompt 會**自動刪除**該 `--prompt-file`。
@@ -73,7 +79,7 @@ CronCreate({
 **嚴禁**在回報結尾追加任何「建議 / 下一步 / 要不要我改用別的方式」之類的提問或 offer。
 回報到「取消方式」就結束。
 
-## goal 模式（`--goal`，選用）
+## goal 模式（預設）
 
 把「做到完成」的判定交給 Claude Code 的 **`/goal` 引擎**（跨回合做到可測量條件達成、Haiku 檢查器每回合驗證），
 取代預設那段文字版自問清單。**已實測**：durable cron fire 進活著的 REPL 時，開頭的 `/goal`（含**多行** args）
@@ -92,7 +98,7 @@ node "<skill_dir>/delaylocal.js" [bufferSeconds] --prompt-file <唯一檔名> --
 - 實際任務 / 發 LINE = 工作清單第 ②③ 項。
 
 完成條件要「可測量 + 有明確驗證方法」（例：`某檔存在且內容為 X`、`npm test exits 0`），別寫模糊的哲學目標。
-不帶 `--goal` 就是預設模式（文字版無人值守紀律），行為不變。
+**goal 是預設模式**；只有在任務無法定義可測量條件時，才加 `--plain` 退回文字版無人值守紀律（不需完成條件、跳過 propose）。`delaylocal.js` 在「非 --plain 又沒給 --goal」時會直接報錯，提醒先 propose。
 
 ### goal 模式的排程流程（propose → 確認 → 才排程）⚠️ 必守
 

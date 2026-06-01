@@ -33,10 +33,12 @@ const snapshotKey = envId.replace(/-/g, '').slice(0, 24);
 const args = process.argv.slice(2);
 let bufferSeconds = 900; // 預設緩衝 15 分鐘
 let promptFile = null;
-let goalCondition = null; // 帶 --goal 則進 goal 模式
+let goalCondition = null; // 完成條件（預設 goal 模式必填；由 Claude propose、使用者確認後填入）
+let plainMode = false;    // --plain 才退回舊的文字紀律模式
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--prompt-file') promptFile = args[++i];
   else if (args[i] === '--goal') goalCondition = args[++i];
+  else if (args[i] === '--plain') plainMode = true;
   else if (/^\d+$/.test(args[i])) bufferSeconds = parseInt(args[i], 10);
 }
 let userPrompt = '';
@@ -49,6 +51,7 @@ if (promptFile) {
 }
 userPrompt = (userPrompt || '').trim();
 if (!userPrompt) fail('沒有收到要排程的 prompt（請用 stdin 或 --prompt-file 傳入）');
+if (!plainMode && !goalCondition) fail('delaylocal 預設為 goal 模式：需提供完成條件 --goal "<可測量完成條件>"。請先把完成條件 propose 給使用者、確認後再排程。若確實要用無目標的文字紀律模式，加 --plain。');
 
 // --- 3. 讀 quota 重置時間（鎖定當前 session）---
 const snapFile = path.join(os.homedir(), '.claude', 'rate-limit-snapshots.json');
@@ -101,8 +104,8 @@ const REPORT_FORMAT = `[delaylocal 完成] <一句話結論>
 
 // --- 4. 組裝 final prompt ---
 let finalPrompt;
-if (goalCondition) {
-  // === goal 模式 ===
+if (!plainMode) {
+  // === goal 模式（預設）===
   // 第一行 = /goal <完成條件>，把「已發 LINE」納入條件（goal 達成後自動清除、不接後續，
   // 所以發 LINE 必須是達成條件的一部分，goal 引擎才會強迫自己發完才停）。
   // session 守衛改成工作清單第①項（不搶 /goal 的第一行位置）。
@@ -124,7 +127,7 @@ ${userPrompt}
 
 ${REPORT_FORMAT}`;
 } else {
-  // === 預設模式（原版文字紀律）===
+  // === 文字紀律模式（--plain，選用 fallback）===
   finalPrompt = `[delaylocal 排程任務 — 綁定 session ${envId}]
 
 == Session 守衛（第一步，務必先做）==
@@ -167,6 +170,6 @@ console.log(JSON.stringify({
   cron,
   fire_in_minutes: Math.round((target - now) / 60),
   buffer_seconds: bufferSeconds,
-  mode: goalCondition ? 'goal' : 'default',
+  mode: plainMode ? 'plain' : 'goal',
   final_prompt: finalPrompt
 }, null, 2));
