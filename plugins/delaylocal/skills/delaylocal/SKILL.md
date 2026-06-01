@@ -73,6 +73,27 @@ CronCreate({
 **嚴禁**在回報結尾追加任何「建議 / 下一步 / 要不要我改用別的方式」之類的提問或 offer。
 回報到「取消方式」就結束。
 
+## goal 模式（`--goal`，選用）
+
+把「做到完成」的判定交給 Claude Code 的 **`/goal` 引擎**（跨回合做到可測量條件達成、Haiku 檢查器每回合驗證），
+取代預設那段文字版自問清單。**已實測**：durable cron fire 進活著的 REPL 時，開頭的 `/goal`（含**多行** args）
+會被解析成 slash command 並啟動 goal 引擎。
+
+步驟 3 加 `--goal`：
+```bash
+node "<skill_dir>/delaylocal.js" [bufferSeconds] --prompt-file <唯一檔名> --goal "<可測量完成條件>"
+```
+
+產出的 final_prompt 特性（解掉「/goal 要佔第一行」與 delaylocal 機制的衝突）：
+- **第一行** = `/goal <你的完成條件>；並且已執行 notify-line.js 發出 LINE 總結（回應 200）`
+  —— 把「已發 LINE」**納入完成條件**：goal 達成後會自動清除、不接後續指示，所以唯有把發 LINE 寫進條件，
+  goal 引擎才會強迫自己發完才肯停。
+- **session 守衛 = 工作清單第①項**（不搶 `/goal` 的第一行）：非綁定 session fire 到 → 視為達成、不做事、不發 LINE。
+- 實際任務 / 發 LINE = 工作清單第 ②③ 項。
+
+完成條件要「可測量 + 有明確驗證方法」（例：`某檔存在且內容為 X`、`npm test exits 0`），別寫模糊的哲學目標。
+不帶 `--goal` 就是預設模式（文字版無人值守紀律），行為不變。
+
 ## 設計要點
 
 - **算哪個 session 的 quota**：工具讀 `CLAUDE_CODE_SESSION_ID`（去 dash 取前 24 字元 = snapshot key）→ 精準鎖定當前 session。

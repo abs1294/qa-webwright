@@ -3,9 +3,16 @@
 //
 // 用法：
 //   echo "<使用者要排的 prompt 原文>" | node delaylocal.js [bufferSeconds]
-//   或： node delaylocal.js [bufferSeconds] --prompt-file <path>
+//   node delaylocal.js [bufferSeconds] --prompt-file <path>
+//   node delaylocal.js [bufferSeconds] --prompt-file <path> --goal "<可測量完成條件>"
 //
-// 輸出：JSON { ok, sessionId, snapshotKey, resets_at_local, target_local, cron, fire_in_minutes, buffer_seconds, final_prompt }
+// 兩種模式：
+//   - 預設：final_prompt 內建「session 守衛 + 無人值守文字紀律 + 任務 + 發 LINE」。
+//   - --goal：final_prompt 第一行為 `/goal <完成條件>`（含「已發 LINE」），靠 Claude Code 的
+//     goal 引擎 + Haiku 檢查器持續做到達成；session 守衛改成工作清單第①項（不搶第一行）。
+//     已實測：durable cron fire 進活著的 REPL 時，開頭的 /goal 會被解析成 slash command。
+//
+// 輸出：JSON { ok, sessionId, snapshotKey, resets_at_local, target_local, cron, fire_in_minutes, buffer_seconds, mode, final_prompt }
 // skill 拿 cron + final_prompt 去 CronCreate({ recurring:false, durable:true })。
 'use strict';
 const fs = require('fs');
@@ -22,12 +29,14 @@ const envId = process.env.CLAUDE_CODE_SESSION_ID || '';
 if (!envId) fail('CLAUDE_CODE_SESSION_ID 環境變數不存在，無法鎖定當前 session');
 const snapshotKey = envId.replace(/-/g, '').slice(0, 24);
 
-// --- 2. 讀使用者 prompt（stdin 優先，否則 --prompt-file）---
+// --- 2. 讀參數與使用者 prompt（stdin 優先，否則 --prompt-file）---
 const args = process.argv.slice(2);
 let bufferSeconds = 900; // 預設緩衝 15 分鐘
 let promptFile = null;
+let goalCondition = null; // 帶 --goal 則進 goal 模式
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--prompt-file') promptFile = args[++i];
+  else if (args[i] === '--goal') goalCondition = args[++i];
   else if (/^\d+$/.test(args[i])) bufferSeconds = parseInt(args[i], 10);
 }
 let userPrompt = '';
@@ -65,10 +74,58 @@ const target = base + bufferSeconds;
 const d = new Date(target * 1000);
 const cron = `${d.getMinutes()} ${d.getHours()} ${d.getDate()} ${d.getMonth() + 1} *`;
 
-// --- 4. 組裝 final prompt（session 守衛 + autonomous + 使用者 prompt + LINE 通知）---
 // notify-line.js 與本檔同目錄；用 __dirname 取絕對路徑，plugin 裝在哪都能找到。
 const notifyPath = path.join(__dirname, 'notify-line.js');
-const finalPrompt = `[delaylocal 排程任務 — 綁定 session ${envId}]
+const reportPath = 'C:\\Users\\User\\AppData\\Local\\Temp\\delaylocal-report.txt';
+
+// 固定報告格式（兩種模式共用）
+const REPORT_FORMAT = `[delaylocal 完成] <一句話結論>
+
+■ 任務
+<一句話描述這次做了什麼專案 / 修了什麼>
+
+■ 執行結果
+- <項目>：<完成 / Pass / Fail / 未做原因>
+
+■ 決策記錄
+- <做了什麼決策>：<理由>（沒有就寫「無」）
+
+■ 發現問題
+- BUG-1 [Critical/Major/Minor]：<描述>（沒有就寫「無」）
+
+■ 產出
+- <檔案路徑 / commit / PR / 啟動方式>
+
+■ 下一步建議
+- <建議>（沒有就寫「無」）`;
+
+// --- 4. 組裝 final prompt ---
+let finalPrompt;
+if (goalCondition) {
+  // === goal 模式 ===
+  // 第一行 = /goal <完成條件>，把「已發 LINE」納入條件（goal 達成後自動清除、不接後續，
+  // 所以發 LINE 必須是達成條件的一部分，goal 引擎才會強迫自己發完才停）。
+  // session 守衛改成工作清單第①項（不搶 /goal 的第一行位置）。
+  finalPrompt = `/goal ${goalCondition}；並且已將完整報告寫入暫存檔、執行 notify-line.js 成功發出 LINE 總結（LINE 回應 200）
+
+（上面第一行是 goal 完成條件。下面是達成它要依序完成的工作清單，當作你的執行指引；全程繁體中文、無人值守：不停下來問使用者、需要決定時自己選風險最小做法、做到完成。）
+
+工作清單（依序）：
+1. [Session 守衛] 確認環境變數 CLAUDE_CODE_SESSION_ID 是否等於 ${envId}。
+   - 不等於 → 這是別的 session 誤觸發本排程：不要執行任務、不要發 LINE，直接視為本目標達成（本 session 無事可做）。
+   - 等於 → 繼續下面步驟。
+2. [執行任務] 完成以下任務（持續做到完成；遇真正 blocker 先把其餘能做的做完再記錄）：
+${userPrompt}
+3. [收尾發 LINE] 把依「報告格式」填好的報告寫進 "${reportPath}"，再執行：
+   cat "${reportPath}" | node "${notifyPath}"
+   （notify-line.js 走 node https，自動拆多則、可帶中文/emoji；需先設好 notify-line.config.json 或 LINE_TOKEN/LINE_USER_ID。）
+
+報告格式（步驟 3 用，嚴格照填、不增不減）：
+
+${REPORT_FORMAT}`;
+} else {
+  // === 預設模式（原版文字紀律）===
+  finalPrompt = `[delaylocal 排程任務 — 綁定 session ${envId}]
 
 == Session 守衛（第一步，務必先做）==
 這個排程綁定建立它的 session（${envId}）。多 session 環境下其他 session 可能也會 fire 到本任務。
@@ -93,35 +150,13 @@ ${userPrompt}
 
 == 結束時必做：發 LINE 完整 response ==
 無論「全部完成」或「遇到 blocker 中止」，最後一步把報告寫進暫存檔，再用 stdin 管道發 LINE：
-  cat "C:\\Users\\User\\AppData\\Local\\Temp\\delaylocal-report.txt" | node "${notifyPath}"
+  cat "${reportPath}" | node "${notifyPath}"
 （notify-line.js 走 node https，自動把長內容拆多則，每則 4800 字、最多 5 則；超過則完整內容存本機並附路徑。可直接帶中文 / emoji。需先設好 notify-line.config.json 或 LINE_TOKEN/LINE_USER_ID 環境變數。）
 
 報告**必須嚴格照以下固定格式**填寫，只填這些區塊、不增不減：
 
-[delaylocal 完成] <一句話結論>
-
-■ 任務
-<一句話描述這次做了什麼專案 / 修了什麼>
-
-■ 執行結果
-- <項目>：<完成 / Pass / Fail / 未做原因>
-- ...
-
-■ 決策記錄
-- <做了什麼決策>：<理由>
-- ...（沒有就寫「無」）
-
-■ 發現問題
-- BUG-1 [Critical/Major/Minor]：<描述>
-- ...（沒有就寫「無」）
-
-■ 產出
-- <檔案路徑 / commit / PR / 啟動方式>
-- ...
-
-■ 下一步建議
-- <建議>
-- ...（沒有就寫「無」）`;
+${REPORT_FORMAT}`;
+}
 
 console.log(JSON.stringify({
   ok: true,
@@ -132,5 +167,6 @@ console.log(JSON.stringify({
   cron,
   fire_in_minutes: Math.round((target - now) / 60),
   buffer_seconds: bufferSeconds,
+  mode: goalCondition ? 'goal' : 'default',
   final_prompt: finalPrompt
 }, null, 2));
