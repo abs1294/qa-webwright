@@ -109,7 +109,7 @@ if (!plainMode) {
   // 第一行 = /goal <完成條件>，把「已發 LINE」納入條件（goal 達成後自動清除、不接後續，
   // 所以發 LINE 必須是達成條件的一部分，goal 引擎才會強迫自己發完才停）。
   // session 守衛改成工作清單第①項（不搶 /goal 的第一行位置）。
-  finalPrompt = `/goal ${goalCondition}；並且已將完整報告寫入暫存檔、執行 notify-line.js 成功發出 LINE 總結（LINE 回應 200）
+  finalPrompt = `/goal ${goalCondition}；並且已將完整報告寫入暫存檔、執行 notify-line.js 完成收尾通知（有設 LINE 憑證→發出總結並回應 200；未設→工具自動略過並回 exit 0，此步同樣視為完成，不可因為沒收到 LINE 就重試或卡住）
 
 （上面第一行是 goal 完成條件。下面是達成它要依序完成的工作清單，當作你的執行指引；全程繁體中文、無人值守：不停下來問使用者、需要決定時自己選風險最小做法、做到完成。）
 
@@ -119,9 +119,9 @@ if (!plainMode) {
    - 等於 → 繼續下面步驟。
 2. [執行任務] 完成以下任務（持續做到完成；遇真正 blocker 先把其餘能做的做完再記錄）：
 ${userPrompt}
-3. [收尾發 LINE] 把依「報告格式」填好的報告寫進 "${reportPath}"，再執行：
+3. [收尾通知] 把依「報告格式」填好的報告寫進 "${reportPath}"，再執行：
    cat "${reportPath}" | node "${notifyPath}"
-   （notify-line.js 走 node https，自動拆多則、可帶中文/emoji；需先設好 notify-line.config.json 或 LINE_TOKEN/LINE_USER_ID。）
+   （notify-line.js 走 node https，自動拆多則、可帶中文/emoji。LINE 為選用：有設憑證就發出；未設則自動略過並回 exit 0、不算失敗——報告已寫入暫存檔即視為此步完成，別因為沒收到 LINE 就重試或卡住。）
 
 報告格式（步驟 3 用，嚴格照填、不增不減）：
 
@@ -151,10 +151,10 @@ ${REPORT_FORMAT}`;
 == 實際任務 ==
 ${userPrompt}
 
-== 結束時必做：發 LINE 完整 response ==
-無論「全部完成」或「遇到 blocker 中止」，最後一步把報告寫進暫存檔，再用 stdin 管道發 LINE：
+== 結束時必做：收尾通知（LINE 選用）==
+無論「全部完成」或「遇到 blocker 中止」，最後一步把報告寫進暫存檔，再用 stdin 管道發出：
   cat "${reportPath}" | node "${notifyPath}"
-（notify-line.js 走 node https，自動把長內容拆多則，每則 4800 字、最多 5 則；超過則完整內容存本機並附路徑。可直接帶中文 / emoji。需先設好 notify-line.config.json 或 LINE_TOKEN/LINE_USER_ID 環境變數。）
+（notify-line.js 走 node https，自動把長內容拆多則，每則 4800 字、最多 5 則；超過則完整內容存本機並附路徑。可直接帶中文 / emoji。LINE 為選用：有設憑證就發出；未設則自動略過並回 exit 0、不算失敗——報告仍已寫入暫存檔，照常結束。）
 
 報告**必須嚴格照以下固定格式**填寫，只填這些區塊、不增不減：
 

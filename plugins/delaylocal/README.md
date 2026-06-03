@@ -9,7 +9,7 @@
 ## 前置（一次性）
 
 1. 需要 Node.js。
-2. LINE 憑證**不進 git**，二選一：
+2. LINE 通知為**選用**（**有設就發、沒設就自動略過、不影響任務執行**）。要啟用就設定其一，憑證**不進 git**：
    - 複製 `skills/delaylocal/notify-line.config.example.json` → `notify-line.config.json`（同目錄），填入
      你的 LINE Channel Access Token 與 userId；**或**
    - 設環境變數 `LINE_TOKEN`、`LINE_USER_ID`。

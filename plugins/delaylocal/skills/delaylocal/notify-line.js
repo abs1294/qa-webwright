@@ -22,8 +22,12 @@ try {
   LINE_USER_ID = LINE_USER_ID || cfg.userId || '';
 } catch (_) {}
 if (!LINE_TOKEN || !LINE_USER_ID) {
-  console.error('缺 LINE 憑證：複製 notify-line.config.example.json 成 notify-line.config.json 並填入 token/userId，或設環境變數 LINE_TOKEN / LINE_USER_ID。');
-  process.exit(2);
+  // LINE 通知為「選用」：有設憑證才發、沒設就略過，且不影響呼叫方（任務照常完成）。
+  // 故缺憑證時印一行 SKIP 並以 0 結束，不再視為失敗。
+  // 要啟用通知：複製 notify-line.config.example.json 成 notify-line.config.json 填 token/userId，
+  // 或設環境變數 LINE_TOKEN / LINE_USER_ID。
+  console.log('LINE SKIP | 未設定 LINE 憑證，略過通知（不影響執行）。');
+  process.exit(0);
 }
 
 const PER_MSG = 4800;   // 單則保守上限（LINE 5000，留 buffer）
