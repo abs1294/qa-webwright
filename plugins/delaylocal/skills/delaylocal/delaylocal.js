@@ -79,7 +79,10 @@ const cron = `${d.getMinutes()} ${d.getHours()} ${d.getDate()} ${d.getMonth() + 
 
 // notify-line.js 與本檔同目錄；用 __dirname 取絕對路徑，plugin 裝在哪都能找到。
 const notifyPath = path.join(__dirname, 'notify-line.js');
-const reportPath = 'C:\\Users\\User\\AppData\\Local\\Temp\\delaylocal-report.txt';
+// 報告檔放系統暫存目錄（os.tmpdir()）→ 不綁特定使用者名、換機器也寫得進去（#1 可攜性）；
+// 檔名帶 snapshotKey + 時間戳 → 多 session / 同 session 多次排程並發時不互相覆寫（#3 唯一化，
+// 對齊步驟 2 prompt 中繼檔「檔名每次唯一」的原則）。
+const reportPath = path.join(os.tmpdir(), `delaylocal-report-${snapshotKey}-${Date.now()}.txt`);
 
 // 固定報告格式（兩種模式共用）
 const REPORT_FORMAT = `[delaylocal 完成] <一句話結論>

@@ -1,6 +1,6 @@
 # delaylocal
 
-把一段 prompt 排程到 **5 小時 quota 重置之後**，自動在本機**無人值守**執行，完成或中止後發 **LINE 通知**。
+把一段 prompt 排程到 **5 小時 quota 重置之後**，自動在本機**無人值守**執行，完成或中止後發 **LINE 通知**（選用，未設憑證則自動略過、不影響執行）。
 
 - 鎖定**當前 session** 的 quota 重置時間（讀 `CLAUDE_CODE_SESSION_ID`）。
 - 用 durable `CronCreate` 排程；final prompt 內建 **session 守衛**（只有原 session 會真正執行）。
